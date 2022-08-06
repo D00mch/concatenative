@@ -2,6 +2,32 @@
 
 FIXME: my new application.
 
+## Editor integration
+
+Clj-kondo is used to inspect the code.
+
+<img src="https://github.com/Liverm0r/concatenative/blob/main/gifs/inspections.png" alt="alt text">
+
+Warnings from terminal: 
+
+    clj-kondo --lint src/dumch/concatenative.clj
+
+Should work out of the box if your editor supports LSP or clj-kondo directly:
+
+<img src="https://github.com/Liverm0r/concatenative/blob/main/gifs/lsp_inspections.gif" alt="alt text">
+
+### IntelliJIdea
+
+Put cursor on `defstackfn` -> right mouse click -> `show context action` -> `resolve ...` -> choose `defn`.  
+
+Install [Clojure Extras][1] plugin to support clj-kondo inspections.
+
+And turn of `preferences` -> `editor` -> `inspections` -> `clojure` -> `unresolved symbols`;
+
+<img src="https://github.com/Liverm0r/concatenative/blob/main/gifs/idea_inspections.gif" alt="alt text">
+
+[1]: https://plugins.jetbrains.com/plugin/18108-clojure-extras
+
 ## License
 
 Copyright © 2022 M1

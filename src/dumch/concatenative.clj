@@ -128,7 +128,6 @@
          !v1
          0                   ; # divide by zero, but...
          !v2
-         (invoke> / 2)       ; # this 'if-branch' will not be evaluated
          else>               ; # next will be ->
 
          "false!!"           ; "false!!" 
@@ -139,16 +138,12 @@
          !a+                 ; # !a is set to 24 in this local scope
          (invoke> * 2))      ; 24
     !a                       ; 24 1
-    (invoke> str 2))         ; "124"
+    (invoke> str 2))         ; "124" # and not 2424, as !a from `else` is local
 
-  (f 1 2 4)
 
-  (defstackfn f2 [] 0 1 (invoke> / 2)) ;; divide by zero
-  (f2)
+
+  ; (defstackfn f2 [] 0 1 (invoke> / 2)) ;; divide by zero
+  ; (f2)
   (ex-data *e)
   (ex-cause *e)
-
-  (defstackfn f3 [] <pop>) ;; pop from empty
-  (f3)
-  (ex-data *e)
 ,)

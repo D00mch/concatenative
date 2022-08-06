@@ -10,21 +10,37 @@
 
 (declare traverse-body)
 
-(defn invoke> [head [f cnt :as body]]
+(defn- vsplit-at [idx v]
+  [(subvec v 0 idx) (subvec v idx)])
+
+(defn invoke->tranverse [head [f cnt :as body] tail stack]
   (check! (= (count body) 2) head "invoke> requires exactly 2 args")
   (check! (fn? (eval (sexpr f))) f "first arg should be a function")
   (check! (nat-int? (sexpr cnt)) cnt "last arg should be a natural number")
-  f)
+  (if (>= (count stack) (sexpr cnt))
+    (let [[stack* args] (vsplit-at (- (count stack) (sexpr cnt)) stack)
+          args* (map sexpr (reverse args))]
+      (check! (not (and (#{'/ 'quot 'rem 'mod} (sexpr f)) 
+                        (some #(= % 0) (next args*))))
+              f 
+              "divide by zero")
+      (cons 
+        (list-node (list* f args*))
+        (traverse-body tail (conj stack* :some-result))))
+    (do 
+      (check! false head (str "Needs " (sexpr cnt) " arguments, but have only " (count stack)))
+      (traverse-body tail stack))))
 
-(defn if> [head body]
+(defn if-node [head body stack]
   (check! (some #(= (str %) "else>") body) head "no else> branch")
   (let [[_if [_ & el]] (split-with #(-> % str (not= "else>")) body)]
-    (list-node (list* (token-node 'do) 
-                      ;; to isolate if body into separate node
-                      (list-node (list* (token-node 'do)  (traverse-body _if)))
-                      (traverse-body el)))))
+    (list-node 
+      (list* (token-node 'do) 
+             ;; to isolate if body into separate node and have local bindings
+             (list-node (list* (token-node 'do)  (traverse-body _if stack)))
+             (traverse-body el stack)))))
 
-(defn let> [head tail]
+(defn let-node [head tail stack]
   (let [h-str (str head)
         s-node (token-node (symbol (subs h-str 0 (dec (count h-str)))))]
     (check! (str/starts-with? h-str "!") head "vars should start with '!'")
@@ -32,36 +48,38 @@
       (list* 
         (token-node 'let)
         (vector-node [s-node (token-node nil)])
-        (traverse-body tail)))))
+        (traverse-body tail stack)))))
 
-(defn traverse-body [[head & tail]]
+;; returns list of nodes
+(defn traverse-body [[head & tail] stack]
   (if head
     (cond 
       (token-node? head) 
       (let [h-str (str head)]
-        (cond (= h-str "<pop>") (traverse-body tail)
-
+        (cond (= h-str "<pop>") 
+              (let [_empty? (empty? stack)]
+                (check! (not _empty?) head "can't pop from empty stack")
+                (traverse-body tail (if _empty? stack (pop stack))))
+              
               (and (> (count h-str) 2) (str/ends-with? h-str "+")) 
-              (list (let> head tail))
+              (list (let-node head tail stack))
 
               (and (not (str/starts-with? h-str "!"))
                    (symbol? (sexpr head)))     
               (do (check! false head "unsupported symbol")
-                  (cons head (traverse-body tail)))
+                  (cons head (traverse-body tail stack)))
 
-              :else (cons head (traverse-body tail)))) 
+              :else (cons head (traverse-body tail (conj stack head))))) 
 
       (list-node? head) 
       (let [[fn-name & body] (:children head)]
-        (cons (case (str fn-name)
-                "invoke>" (invoke> head body)
-                "if>" (if> head body)
-                (do (check! false head "unknown form")
-                    head))
+        (case (sexpr fn-name)
+          invoke> (invoke->tranverse head body tail stack)
+          if> (cons (if-node head body stack) (traverse-body tail stack))
+          (do (check! false head "unknown form")
+              (cons head (traverse-body tail stack)))))
 
-              (traverse-body tail)))
-
-      :else (traverse-body tail))
+      :else (traverse-body tail stack))
     nil))
 
 (defn defstackfn [{:keys [node]}]
@@ -74,6 +92,6 @@
     (let [result (list-node (list* (token-node 'defn)
                                    fn-name
                                    args
-                                   (traverse-body body)))]
-      #_(println :result (sexpr result))
+                                   (traverse-body body [])))]
+      (println :result (sexpr result))
       {:node result})))

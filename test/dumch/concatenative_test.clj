@@ -37,6 +37,7 @@
              '(nil (if> 1 else> 2)))     [2]))))
 
 
+ #_{:clj-kondo/ignore [:concatenative/defstackfn]} ; divide by zero in 'if' branch
 (defstackfn default-example 
   [!a !b !c]               ; !a=1 !b=2 !c=4
   !a                       ; 1

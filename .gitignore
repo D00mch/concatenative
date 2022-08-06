@@ -32,3 +32,8 @@
 .lsp/
 .lsp/.cache
 .lsp/sqlite.db
+resources/clj-kondo.exports/dumch/concatenative/.cache
+
+# Idea
+.idea/
+concatenative.iml
