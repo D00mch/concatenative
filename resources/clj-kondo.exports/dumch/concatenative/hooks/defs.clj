@@ -10,21 +10,24 @@
 
 (declare traverse-body)
 
-(defn invoke> [head body]
+(defn invoke> [head [f cnt :as body]]
   (check! (= (count body) 2) head "invoke> requires exactly 2 args")
-  (check! (fn? (eval (sexpr (first body)))) head "first arg should be a function")
-  (list-node (list* (token-node 'do) (traverse-body body))))
+  (check! (fn? (eval (sexpr f))) f "first arg should be a function")
+  (check! (nat-int? (sexpr cnt)) cnt "last arg should be a natural number")
+  f)
 
 (defn if> [head body]
   (check! (some #(= (str %) "else>") body) head "no else> branch")
-  (token-node 11)
-  (let [[if [_ & el]] (split-with #(-> % str (not= "else>")) body)]
-    (list-node (list* (token-node 'do) (traverse-body (concat if el))))))
+  (let [[_if [_ & el]] (split-with #(-> % str (not= "else>")) body)]
+    (list-node (list* (token-node 'do) 
+                      ;; to isolate if body into separate node
+                      (list-node (list* (token-node 'do)  (traverse-body _if)))
+                      (traverse-body el)))))
 
 (defn let> [head tail]
   (let [h-str (str head)
         s-node (token-node (symbol (subs h-str 0 (dec (count h-str)))))]
-    #_(check! (str/starts-with? h-str "!") head "vars should start with '!'")
+    (check! (str/starts-with? h-str "!") head "vars should start with '!'")
     (list-node 
       (list* 
         (token-node 'let)
@@ -41,6 +44,11 @@
               (and (> (count h-str) 2) (str/ends-with? h-str "+")) 
               (list (let> head tail))
 
+              (and (not (str/starts-with? h-str "!"))
+                   (symbol? (sexpr head)))     
+              (do (check! false head "unsupported symbol")
+                  (cons head (traverse-body tail)))
+
               :else (cons head (traverse-body tail)))) 
 
       (list-node? head) 
@@ -48,7 +56,8 @@
         (cons (case (str fn-name)
                 "invoke>" (invoke> head body)
                 "if>" (if> head body)
-                head)
+                (do (check! false head "unknown form")
+                    head))
 
               (traverse-body tail)))
 

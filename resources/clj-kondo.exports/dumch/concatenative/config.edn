@@ -1,6 +1,6 @@
-{:hooks 
- {:analyze-call 
+{:hooks
+ {:analyze-call
   {dumch.concatenative/defstackfn hooks.defs/defstackfn}}
 
- :linters 
+ :linters
  {:concatenative/defstackfn {:level :error}}}
