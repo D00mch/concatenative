@@ -1,12 +1,89 @@
 # concatenative
 
-FIXME: my new application.
+Interpreter for stack based DSL. See details in the [rpl-take-home-project1-clj.pdf][docs-paper]
+paper.
+
+[docs-paper]: https://github.com/Liverm0r/concatenative/blob/main/docs/rpl-take-home-project1-clj.pdf
+
+## Assumptions
+
+- Local vars should be withing `if else` block, meaning that expressions after
+`if else` do not see vars declared within `if else`.
+
+## How it works
+
+There is a `program` that is just a list of expressions to be evaluated;
+`stack` is used to pass parameters; `env` (a dictionary) is used to store
+variables.
+
+All three formulates a `State`.
+
+Evaluation happens with processing `State` in `interpreter` function: 
+1. Get next expression from the `program`.
+2. Evaluates it (based on rules from the [paper][docs-paper]).
+3. If `program` is not empty, go to 1.
+
+## Design choices
+
+### Polymorphism
+
+As types are evaluated differently, there is a necessity to dispatch based on
+them. The first question here is whether it should be an opened or a closed system. 
+
+The decision was made to go with an opened one to make it possible to extend
+the code without modifications. For example, this repository may be used as a
+library and another app will be able to implement `eval` for different types.
+
+Next question is what to use — `protocols` or `multimethods`.
+
+`Protocols` are good when we need to dispatch based on types, and performance is
+5-100 times better, depending on the actual code, clj- and jvm versions.
+
+`Multimethods` are good if dispatching on `value` or several `values`/`types`. 
+
+Taking this into account, protocols seem to be good for Interpreter
+implementation, as *`types`* are evaluated differently.
+
+And `methods` are good for `Clj-kondo` hooks, as `Clj-kondo` works with nodes,
+but node types are not exposed. Instead node `tags` values could be used to
+dispatch upon.
+
+Unfortunately, there is a bug that `TokenNodes` return `nil`, so the
+[issue][issue] was created, and `cond` was used as a temporary solution.
+
+[issue]: https://github.com/clj-kondo/clj-kondo/issues/1768
+
+### Error messaging / detection
+
+The most useful thing is to know which particular line (in our case expression)
+contains a problem. As the code is transformed by macro, jvm exceptions won't do
+the job.
+
+Two approaches are used to deal with this. 
+
+1. Code inspections are smart enough to find typos and errors like division by
+zero, popping from empty stack, or insufficient arguments count. 
+
+<img src="https://github.com/Liverm0r/concatenative/blob/main/docs/inspections.png" alt="alt text">
+
+2. If anything crashes, we have usual jvm exception wrapped with ExInfo with
+`State` attached, where we can inspect on what step the program stumbled:
+
+```clojure
+(defstackfn f2 [!a] !a 1 (invoke> / 2) 3 4)
+(f2 0)
+(ex-data *e) ;; => 
+        {:cause {:error-call {:fn /, :args (1 0)}},
+         :state {:program ((invoke> / 2) 3 4), :stack [0 1], :env {!a 0}},
+         :eval (invoke> / 2)}
+
+```
+
+This approach is ok while programs are not huge.
 
 ## Editor integration
 
 Clj-kondo is used to inspect the code.
-
-<img src="https://github.com/Liverm0r/concatenative/blob/main/gifs/inspections.png" alt="alt text">
 
 Warnings from terminal: 
 
@@ -14,7 +91,7 @@ Warnings from terminal:
 
 Should work out of the box if your editor supports LSP or clj-kondo directly:
 
-<img src="https://github.com/Liverm0r/concatenative/blob/main/gifs/lsp_inspections.gif" alt="alt text">
+<img src="https://github.com/Liverm0r/concatenative/blob/main/docs/lsp_inspections.gif" alt="alt text">
 
 ### IntelliJIdea
 
@@ -24,9 +101,13 @@ Install [Clojure Extras][1] plugin to support clj-kondo inspections.
 
 And turn of `preferences` -> `editor` -> `inspections` -> `clojure` -> `unresolved symbols`;
 
-<img src="https://github.com/Liverm0r/concatenative/blob/main/gifs/idea_inspections.gif" alt="alt text">
+<img src="https://github.com/Liverm0r/concatenative/blob/main/docs/idea_inspections.gif" alt="alt text">
 
 [1]: https://plugins.jetbrains.com/plugin/18108-clojure-extras
+
+## Tests
+
+    clj -X:test
 
 ## License
 
