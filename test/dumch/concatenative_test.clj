@@ -34,8 +34,27 @@
     (is (= (program->stack
              '(false (if> 1 else> 2)))   [2]))
     (is (= (program->stack
-             '(nil (if> 1 else> 2)))     [2]))))
+             '(nil (if> 1 else> 2)))     [2])))
 
+  (testing "if> fills the stack"
+    (is (= (program->stack
+             '(1 (if> 1 1 else> 2)))     [1 1]))
+    (is (= (program->stack
+             '(nil (if> 1 else> 2 2)))   [2 2]))))
+
+(deftest local-vars-shadow
+  (testing "shadow if vars"
+    (is (= (program->stack
+             '(true !a+
+                    (if> 1 !a+ !a else> 0)
+                    !a))
+           [1 1 true])))
+  (testing "shadow else vars"
+    (is (= (program->stack
+             '(false !a+
+                     (if> 0 else> 1 !a+ !a)
+                     !a))
+           [1 1 false]))))
 
  #_{:clj-kondo/ignore [:concatenative/defstackfn]} ; divide by zero in 'if' branch
 (defstackfn default-example 
