@@ -16,7 +16,7 @@ There is a `program` that is just a list of expressions to be evaluated;
 `stack` is used to pass parameters; `env` (a dictionary) is used to store
 variables.
 
-All three formulates a `State`.
+All three formulate a `State`.
 
 Evaluation happens with processing `State` in `interpreter` function: 
 1. Get next expression from the `program`.
@@ -39,17 +39,17 @@ Next question is what to use — `protocols` or `multimethods`.
 `Protocols` are good when we need to dispatch based on types, and performance is
 5-100 times better, depending on the actual code, clj- and jvm versions.
 
-`Multimethods` are good if dispatching on `value` or several `values`/`types`. 
+`Multimethods` are good if dispatching on a `value` or several `values`/`types`. 
 
 Taking this into account, protocols seem to be good for Interpreter
-implementation, as *`types`* are evaluated differently.
+implementation, as *`types`* (not values) are evaluated differently.
 
-And `methods` are good for `Clj-kondo` hooks, as `Clj-kondo` works with nodes,
-but node types are not exposed. Instead node `tags` values could be used to
-dispatch upon.
+And `methods` are good for `Clj-kondo` hooks, as `Clj-kondo` works with `nodes`,
+but `nodes` are not exposed (impossible to `require` them). Instead `node`'s'
+`:tag` values could be used to dispatch upon.
 
-Unfortunately, there is a bug that `TokenNodes` return `nil`, so the
-[issue][issue] was created, and `cond` was used as a temporary solution.
+Unfortunately, there is a bug: `TokenNode` returns `nil` instead of a tag, so
+the [issue][issue] was created, and `cond` was used as a temporary solution.
 
 [issue]: https://github.com/clj-kondo/clj-kondo/issues/1768
 
@@ -66,8 +66,8 @@ zero, popping from empty stack, or insufficient arguments count.
 
 <img src="https://github.com/Liverm0r/concatenative/blob/main/docs/inspections.png" alt="alt text">
 
-2. If anything crashes, we have usual jvm exception wrapped with ExInfo with
-`State` attached, where we can inspect on what step the program stumbled:
+2. If anything crashes, we have usual jvm exception wrapped into ExceptionInfo
+with `State` attached, where we can inspect what step the program stumbled over:
 
 ```clojure
 (defstackfn f2 [!a] !a 1 (invoke> / 2) 3 4)
@@ -85,7 +85,7 @@ This approach is ok while programs are not huge.
 
 Clj-kondo is used to inspect the code.
 
-Warnings from terminal: 
+Warnings from terminal:
 
     clj-kondo --lint src/dumch/concatenative.clj
 
@@ -95,7 +95,7 @@ Should work out of the box if your editor supports LSP or clj-kondo directly:
 
 ### IntelliJIdea
 
-Put cursor on `defstackfn` -> right mouse click -> `show context action` -> `resolve ...` -> choose `defn`.  
+Put cursor on `defstackfn` -> right mouse click -> `show context action` -> `resolve ...` -> choose `defn`. 
 
 Install [Clojure Extras][1] plugin to support clj-kondo inspections.
 
