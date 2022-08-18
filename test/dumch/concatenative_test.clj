@@ -21,7 +21,7 @@
 
   (testing "invoke"
     (is (= (program->stack 
-             '(1 2 (invoke> str 2)))     ["21"]))
+             '(1 2 (invoke> str 2)))     ["12"]))
     (is (= (program->stack
              '((invoke> 
                  (constantly nil) 0)))   [nil])))
@@ -41,6 +41,13 @@
              '(1 (if> 1 1 else> 2)))     [1 1]))
     (is (= (program->stack
              '(nil (if> 1 else> 2 2)))   [2 2]))))
+
+(deftest nil-test
+  (testing "put nil in stack"
+    (is (= (program->stack '(nil !a+ !a)) 
+           [nil nil]))
+    (is (= (program->stack '(nil (invoke> seq 1)))
+           [nil]))))
 
 (deftest local-vars-shadow
   (testing "shadow if vars"
@@ -72,8 +79,8 @@
   (invoke> = 2)            ; false
   (if>                     ; empty           
        !v1
-       0                   ; # divide by zero, but...
        !v2
+       0                   ; # divide by zero, but...
        (invoke> / 2)       ; # this 'if-branch' will not be evaluated
        else>               ; # next will be ->
 
@@ -89,7 +96,7 @@
 
 
 (deftest integration-test
-  (is (= (default-example 1 2 4) "124")))
+  (is (= (default-example 1 2 4) "241")))
 
 ;; TODO: test
 ;;  pop empty stack

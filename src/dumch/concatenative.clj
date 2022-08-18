@@ -50,7 +50,7 @@
 
 (defn- invoke [[f cnt] {:keys [stack] :as state}]
   (let [stack* (subvec stack 0 (- (count stack) cnt))
-        args (reverse (take-last cnt stack))]
+        args (take-last cnt stack)]
     (try
       (assoc state :stack (conj stack* (apply (eval f) ; eval to get actual function 
                                               args)))  ; and not a symbol
@@ -88,8 +88,8 @@
                   (peek stack))
 
         (str/starts-with? _name "!")
-        (if-some [value (get env this)]
-          (update state :stack conj value)
+        (if (contains? env this)
+          (update state :stack conj (get env this))
           (throw (ex-info "undeclared var" {:data this})))
 
         :else (throw (ex-info "symbols should start with '!'" {:data this})))))
@@ -118,7 +118,6 @@
     (invoke> = 2)            ; false
     (if>                     ; empty
          !v1
-         0                   ; # divide by zero, but...
          !v2
          else>               ; # next will be ->
 
@@ -131,11 +130,11 @@
          (invoke> * 2))      ; 24
 
     !a                       ; 24 1
-    (invoke> str 2))         ; "124" # and not 2424, as !a from `else` is local
+    (invoke> str 2))         ; "241" # and not 2424, as !a from `else` is local
 
 
 
-  ; (defstackfn f2 [] 0 1 (invoke> / 2)) ;; divide by zero
+  ; (defstackfn f2 [] 1 0 (invoke> / 2)) ;; divide by zero
   ; (f2)
   (ex-data *e)
   (ex-cause *e)

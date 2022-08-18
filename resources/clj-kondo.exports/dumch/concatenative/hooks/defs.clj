@@ -10,19 +10,20 @@
 
 (declare traverse-body)
 
-(defn invoke->tranverse [head [f cnt :as body] tail stack]
+(defn invoke->traverse [head [f cnt :as body] tail stack]
   (check! (= (count body) 2) head "invoke> requires exactly 2 args")
   (check! (fn? (eval (sexpr f))) f "first arg should be a function")
   (check! (nat-int? (sexpr cnt)) cnt "last arg should be a natural number")
   (if (>= (count stack) (sexpr cnt))
     (let [stack* (subvec stack 0 (- (count stack) (sexpr cnt)))
-          args* (map sexpr (reverse (take-last (sexpr cnt) stack)))]
+          args (take-last (sexpr cnt) stack)
+          args* (map sexpr args)]
       (check! (not (and (#{'/ 'quot 'rem 'mod} (sexpr f))
                         (some #(= % 0) (next args*))))
               f
               "divide by zero")
       (cons
-        (list-node (list* f args*))
+        (list-node (list* (token-node 'do) args ))
         (traverse-body tail (conj stack* :some-result))))
     (do
       (check! false head (str "Needs " (sexpr cnt) " arguments, but have only " (count stack)))
@@ -46,6 +47,7 @@
         (token-node 'let)
         (vector-node [s-node (token-node nil)])
         (traverse-body tail stack)))))
+
 
 ;; returns list of nodes
 (defn traverse-body [[head & tail] stack]
@@ -71,7 +73,7 @@
       (list-node? head)
       (let [[fn-name & body] (:children head)]
         (case (sexpr fn-name)
-          invoke> (invoke->tranverse head body tail stack)
+          invoke> (invoke->traverse head body tail stack)
           if> (cons (if-node head body stack) (traverse-body tail stack))
           (do (check! false head "unknown form")
               (cons head (traverse-body tail stack)))))
