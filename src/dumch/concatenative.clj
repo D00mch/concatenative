@@ -9,14 +9,15 @@
   {:author "Artur Dumchev"}
   (:require
     [dumch.analyze :refer [analyze]]
-    [dumch.vars :refer [->env]])
+    [dumch.vars :refer [->env extend-env]])
   #_(:import (dumch.analyze IAnalyze)))
 
 (defn eval-program 
   ([sexps]
-   (eval-program sexps (->env)))
-  ([sexps env]
-   (trampoline (analyze sexps) env [] identity)))
+   (eval-program sexps {}))
+  ([sexps m]
+   (trampoline
+     (analyze sexps) (extend-env (->env) m) [] identity)))
 
 (defmacro defstackfn
   "Like `defn` with DSL body. See README for the details"
@@ -26,7 +27,12 @@
        (#'eval-program '~tail (zipmap '~args ~args)))))
 
 (comment
-  (set! *warn-on-reflection* false)
+
+  (eval-program '(
+                  1 !a+ !a
+                  (invoke> + 2)
+                  ))
+
   (macroexpand '(defstackfn f [!a !b] !a !b (invoke> + 2)))
 
   (defstackfn f
@@ -58,6 +64,7 @@
     !a                       ; 24 1
     (invoke> str 2))         ; "241" # and not 2424, as !a from `else` is local
 
+  (f 1 2 4)
 
 
   ; (defstackfn f2 [] 1 0 (invoke> / 2)) ;; divide by zero

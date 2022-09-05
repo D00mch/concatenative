@@ -1,63 +1,57 @@
 (ns dumch.concatenative-test
   (:require [clojure.test :refer [deftest testing is]]
-            [dumch.concatenative :refer [defstackfn interpreter ->State]]))
-
-(def new-state (->State '() [] {}))
-
-(defn- program->stack [programm]
-  (:stack (interpreter (assoc new-state :program programm))))
+            [dumch.concatenative :refer [defstackfn eval-program]]))
 
 (deftest test-basic-stack-op
   (testing "put const in stack"
-    (is (= (program->stack '(1))         [1]))
-    (is (= (program->stack '(1 \2 "3"))  [1 \2 "3"]))
-    (is (= (program->stack '([1 2 3]))   [[1 2 3]])))
+    (is (= (eval-program '(1))         [1]))
+    (is (= (eval-program '(1 \2 "3"))  [1 \2 "3"]))
+    (is (= (eval-program '([1 2 3]))   [[1 2 3]])))
   
   (testing "put var in stack"
-    (is (= (program->stack '(1 !a+ !a))  [1 1])))
+    (is (= (eval-program '(1 !a+ !a))  [1 1])))
 
   (testing "pop stack"
-    (is (= (program->stack '(1 <pop>))   [])))
+    (is (= (eval-program '(1 <pop>))   [])))
 
   (testing "invoke"
-    (is (= (program->stack 
+    (is (= (eval-program 
              '(1 2 (invoke> str 2)))     ["12"]))
-    (is (= (program->stack
-             '((invoke> 
-                 (constantly nil) 0)))   [nil])))
+    (is (= (eval-program 
+             '((invoke> pr 0)))     [nil])))
 
   (testing "if> dispatch on truthy value"
-    (is (= (program->stack
+    (is (= (eval-program
              '(true (if> 1 else> 2)))    [1]))
-    (is (= (program->stack
+    (is (= (eval-program
              '(0 (if> 1 else> 2)))       [1]))
-    (is (= (program->stack
+    (is (= (eval-program
              '(false (if> 1 else> 2)))   [2]))
-    (is (= (program->stack
+    (is (= (eval-program
              '(nil (if> 1 else> 2)))     [2])))
 
   (testing "if> fills the stack"
-    (is (= (program->stack
+    (is (= (eval-program
              '(1 (if> 1 1 else> 2)))     [1 1]))
-    (is (= (program->stack
+    (is (= (eval-program
              '(nil (if> 1 else> 2 2)))   [2 2]))))
 
 (deftest nil-test
   (testing "put nil in stack"
-    (is (= (program->stack '(nil !a+ !a)) 
+    (is (= (eval-program '(nil !a+ !a)) 
            [nil nil]))
-    (is (= (program->stack '(nil (invoke> seq 1)))
+    (is (= (eval-program '(nil (invoke> seq 1)))
            [nil]))))
 
 (deftest local-vars-shadow
   (testing "shadow if vars"
-    (is (= (program->stack
+    (is (= (eval-program
              '(true !a+
                     (if> 1 !a+ !a else> 0)
                     !a))
            [1 1 true])))
   (testing "shadow else vars"
-    (is (= (program->stack
+    (is (= (eval-program
              '(false !a+
                      (if> 0 else> 1 !a+ !a)
                      !a))

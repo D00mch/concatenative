@@ -22,6 +22,8 @@
    'count count 'seq seq 'pop pop 'conj conj 'peek peek
    'drop drop 'take take })
 
+(def primitive? (set (vals primitive-procedure-map)))
+
 (def global-env (Frame. primitive-procedure-map nil))
 
 (defn lookup-var
