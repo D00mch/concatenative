@@ -1,6 +1,6 @@
-(ns dumch.env-test
+(ns dumch.vars-test
   (:require [clojure.test :refer [deftest testing is]]
-            [dumch.env :refer [def-var! set-var! lookup-var
+            [dumch.vars :refer [def-var! set-var! lookup-var
                                extend-env ->env global-env]])
   (:import (dumch.env Frame)
            (clojure.lang ExceptionInfo)))

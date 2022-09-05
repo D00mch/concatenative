@@ -1,4 +1,4 @@
-(ns dumch.env
+(ns dumch.vars
   (:require [clojure.pprint :refer [pprint]]))
 
 (deftype Frame [^java.util.Map bindings parent]

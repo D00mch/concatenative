@@ -1,106 +1,32 @@
 (ns dumch.concatenative
-  "Stack based interpreter implementation
-
-  having `State` with
-  `program` — list of forms;
-  `stack` — typical stack machine;
-  `env` — varibles scope;
-
-  computes result by iterating through `program`.
+  "Stack based interpreter CPS implementation.
 
   Entry points:
-  - use DSL with `defstackfn` macro;
-  - manually create `State` and pass to `interpreter` function.
+  - use DSL with `defstackfn` macro.
 
   See docs and project README for the details."
 
   {:author "Artur Dumchev"}
   (:require
-    #_[criterium.core :refer [quick-bench]]
-    [clojure.string :as str]))
+    [dumch.analyze :refer [analyze]]
+    [dumch.vars :refer [->env]])
+  #_(:import (dumch.analyze IAnalyze)))
 
-(defrecord State [program stack env])
-
-(defprotocol IEval (evaluate [this state]))
-
-(defn interpreter
-  "Get `State`, returns new `State` or terminates with an exception.
-
-  Each expression from `State:program` gets evaluated;
-  Varibales stored in `State:env`;
-  Get evaluation result from `State:stack`"
-  [{[h & tail] :program :as state}]
-  (if (or (some? h) (some? tail))
-    (recur
-      (try
-        (evaluate h (assoc state :program tail))
-        (catch Exception e
-          (throw (ex-info "eval error"
-                          {:cause (ex-data e) :state state :eval h}
-                          e)))))
-    state))
+(defn eval-program 
+  ([sexps]
+   (eval-program sexps (->env)))
+  ([sexps env]
+   (trampoline (analyze sexps) env [] identity)))
 
 (defmacro defstackfn
   "Like `defn` with DSL body. See README for the details"
   [f-name args & tail]
   `(defn ~f-name ~args
      (peek
-       (:stack
-         (#'interpreter (->State '~tail [] (zipmap '~args ~args)))))))
-
-(defn- invoke [[f cnt] {:keys [stack] :as state}]
-  (let [stack* (subvec stack 0 (- (count stack) cnt))
-        args (take-last cnt stack)]
-    (try
-      (assoc state :stack (conj stack* (apply (eval f) ; eval to get actual function 
-                                              args)))  ; and not a symbol
-      (catch Exception e
-        (throw (ex-info "funciton application error"
-                        {:error-call {:fn f :args args}}
-                        e))))))
-
-;; uses `interpreter` inside as a way to have local scope vars
-(defn- interpret-if [tail {:keys [stack env] :as state}]
-  (let [[if-body [_ & el-body]] (split-with (partial not= 'else>) tail)
-        body (if (boolean (peek stack)) if-body el-body)
-        result (interpreter (State. body (pop stack) env))]
-    (assoc state :stack (:stack result))))
-
-(extend-protocol IEval
-  java.lang.Object
-  (evaluate [this state]
-    (update state :stack conj this))
-
-  nil
-  (evaluate [this state]
-    (update state :stack conj this))
-
-  clojure.lang.Symbol
-  (evaluate [this {:keys [env stack] :as state}]
-    (let [^String _name (name this)]
-      (cond
-        (= this '<pop>)
-        (update state :stack pop)
-
-        (and (str/starts-with? _name "!") (str/ends-with? _name "+"))
-        (assoc-in state
-                  [:env (symbol (subs _name 0 (dec (.length _name))))]
-                  (peek stack))
-
-        (str/starts-with? _name "!")
-        (if (contains? env this)
-          (update state :stack conj (get env this))
-          (throw (ex-info "undeclared var" {:data this})))
-
-        :else (throw (ex-info "symbols should start with '!'" {:data this})))))
-
-  clojure.lang.ISeq
-  (evaluate [[h & tail] state]
-    (case h
-      invoke> (invoke tail state)
-      if> (interpret-if tail state))))
+       (#'eval-program '~tail (zipmap '~args ~args)))))
 
 (comment
+  (set! *warn-on-reflection* false)
   (macroexpand '(defstackfn f [!a !b] !a !b (invoke> + 2)))
 
   (defstackfn f
