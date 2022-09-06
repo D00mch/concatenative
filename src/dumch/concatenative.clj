@@ -9,32 +9,42 @@
   {:author "Artur Dumchev"}
   (:require
     [dumch.analyze :refer [analyze]]
-    [dumch.vars :refer [->env extend-env]])
-  #_(:import (dumch.analyze IAnalyze)))
+    [dumch.vars :refer [->env extend-env]]))
 
-(defn eval-program 
-  ([sexps]
-   (eval-program sexps {}))
-  ([sexps m]
-   (trampoline
-     (analyze sexps) (extend-env (->env) m) [] identity)))
+(defn eval- 
+  ([cs]
+   (eval- cs {}))
+  ([cs m]
+   (eval- cs (extend-env (->env) m) [] identity))
+  ([[h & tail :as cs] env ds k]
+   (if (or (some? h) (some? tail))
+     (trampoline (analyze h)
+                 env
+                 ds
+                 (fn [stack2]
+                   #(try
+                      (eval- tail env stack2 k)
+                      (catch Exception e
+                        (throw 
+                          (ex-info (str e)
+                                   {:ds ds :cs cs }))))))
+     ds)))
 
 (defmacro defstackfn
   "Like `defn` with DSL body. See README for the details"
   [f-name args & tail]
   `(defn ~f-name ~args
      (peek
-       (#'eval-program '~tail (zipmap '~args ~args)))))
+       (#'eval- '~tail (zipmap '~args ~args)))))
 
 (comment
 
-  (eval-program '(
-                  1 !a+ !a
-                  (invoke> + 2)
-                  ))
+  (eval- '(
+           1 !a+ !a !a
+           (invoke> + 2)
+           ))
 
   (macroexpand '(defstackfn f [!a !b] !a !b (invoke> + 2)))
-
   (defstackfn f
     [!a !b !c]               ; !a=1 !b=2 !c=4
     !a                       ; 1

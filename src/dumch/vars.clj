@@ -10,17 +10,19 @@
 (def primitive-procedure-map 
   {'nil? nil? 'string? string? 'identity identity 'some? some?  
    'boolean? boolean? 'not not 'instance? instance? 'char? char?
-   'print 'print 'prn prn 'pr pr 'println println
+   'str str 'print 'print 'prn prn 'pr pr 'println println
+   '= = 'not= not=
 
    ;; numbers
-   '= = '== == '+ +, '- -, '* *, '/ / '> > '< < '>= >=
+   '== == '+ +, '- -, '* *, '/ / '> > '< < '>= >=
    '<= <= '+' +', '-' '-', '*' *', 'rem rem 'quot quot
    'even? even? 'odd? odd? 'dec dec 'inc inc 'number? number?
 
    ;; sequence
    'first first 'last last 'rest rest 'next next 'cons cons
    'count count 'seq seq 'pop pop 'conj conj 'peek peek
-   'drop drop 'take take })
+   'range range 'drop drop 'take take 'empty? empty?})
+
 
 (def primitive? (set (vals primitive-procedure-map)))
 
@@ -31,7 +33,7 @@
   first in `env.binding`, then in `env.parent`"
   [^Frame env x]
   (cond 
-    (nil? env) (throw (ex-info "not found" {:x x :env env}))
+    (nil? env) (throw (ex-info "not found" {:var x :env env}))
     (contains? (.bindings env) x) (get (.bindings env) x)
     :else (recur (.parent env) x)))
 

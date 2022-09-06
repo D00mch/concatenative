@@ -1,57 +1,62 @@
 (ns dumch.concatenative-test
   (:require [clojure.test :refer [deftest testing is]]
-            [dumch.concatenative :refer [defstackfn eval-program]]))
+            [dumch.concatenative :refer [defstackfn eval-]]))
 
 (deftest test-basic-stack-op
   (testing "put const in stack"
-    (is (= (eval-program '(1))         [1]))
-    (is (= (eval-program '(1 \2 "3"))  [1 \2 "3"]))
-    (is (= (eval-program '([1 2 3]))   [[1 2 3]])))
-  
+    (is (= (eval- '(1))                  [1]))
+    (is (= (eval- '(1 \2 "3"))           [1 \2 "3"]))
+    (is (= (eval- '([1 2 3]))            [[1 2 3]])))
+
   (testing "put var in stack"
-    (is (= (eval-program '(1 !a+ !a))  [1 1])))
+    (is (= (eval- '(1 !a+ !a))           [1 1])))
 
   (testing "pop stack"
-    (is (= (eval-program '(1 <pop>))   [])))
+    (is (= (eval- '(1 <pop>))            [])))
 
   (testing "invoke"
-    (is (= (eval-program 
+    (is (= (eval- 
              '(1 2 (invoke> str 2)))     ["12"]))
-    (is (= (eval-program 
-             '((invoke> pr 0)))     [nil])))
+    (is (= (eval- 
+             '((invoke> pr 0)))          [nil]))))
 
+(deftest if-test
   (testing "if> dispatch on truthy value"
-    (is (= (eval-program
-             '(true (if> 1 else> 2)))    [1]))
-    (is (= (eval-program
-             '(0 (if> 1 else> 2)))       [1]))
-    (is (= (eval-program
-             '(false (if> 1 else> 2)))   [2]))
-    (is (= (eval-program
-             '(nil (if> 1 else> 2)))     [2])))
+    (is (= (eval- '(true (if> 1 else> 2)))    [1]))
+    (is (= (eval- '(0 (if> 1 else> 2)))       [1]))
+    (is (= (eval- '(false (if> 1 else> 2)))   [2]))
+    (is (= (eval- '(nil (if> 1 else> 2)))     [2])))
 
   (testing "if> fills the stack"
-    (is (= (eval-program
-             '(1 (if> 1 1 else> 2)))     [1 1]))
-    (is (= (eval-program
-             '(nil (if> 1 else> 2 2)))   [2 2]))))
+    (is (= (eval- '(1 (if> 1 1 2 3 else> 2))) [1 1 2 3]))
+    (is (= (eval- '(1 (if> 1 [1 2] else> 2))) [1 [1 2]]))
+    (is (= (eval- '(nil (if> 1 else> 2 2)))   [2 2]))))
+
+(deftest when-test
+  (testing "when> dispatch on truthy value"
+    (is (= (eval- '(true (when> 1)))    [1]))
+    (is (= (eval- '(0 (when> 1)))       [1]))
+    (is (= (eval- '(false (when> 1)))   []))
+    (is (= (eval- '(nil (when> 1)))     [])))
+  (testing "when> fills the stack"
+    (is (= (eval- '(1 (when> 1 1 [2]))) [1 1 [2]]))))
 
 (deftest nil-test
   (testing "put nil in stack"
-    (is (= (eval-program '(nil !a+ !a)) 
+    (is (= (eval- '(nil !a+ !a)) 
            [nil nil]))
-    (is (= (eval-program '(nil (invoke> seq 1)))
+    (is (= (eval- '(nil (invoke> seq 1)))
            [nil]))))
 
 (deftest local-vars-shadow
   (testing "shadow if vars"
-    (is (= (eval-program
+    (is (= (eval-
              '(true !a+
                     (if> 1 !a+ !a else> 0)
                     !a))
            [1 1 true])))
   (testing "shadow else vars"
-    (is (= (eval-program
+    (is (= (eval-
              '(false !a+
                      (if> 0 else> 1 !a+ !a)
                      !a))
@@ -88,11 +93,22 @@
   !a                       ; 24 1
   (invoke> str 2))
 
-
 (deftest integration-test
   (is (= (default-example 1 2 4) "241")))
 
-;; TODO: test
-;;  pop empty stack
-;;  / by 0
-;; invoke> with insufficient args 
+(deftest runtime-errors-test
+  (testing "insufficient arguments"
+    (is (thrown-with-msg?
+          Exception
+          #"IndexOutOfBoundsException"
+          (eval- '(2 (invoke> / 2))))))
+  (testing "divide by zero"
+    (is (thrown-with-msg?
+          Exception
+          #"Divide by zero"
+          (eval- '(2 0 (invoke> / 2))))))
+  (testing "pop from empty stack"
+    (is (thrown-with-msg?
+          Exception
+          #"Can't pop empty vector"
+          (eval- '(<pop>))))))

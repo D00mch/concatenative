@@ -4,10 +4,8 @@
             [clojure.string :as str]
             [dumch.vars :as vars]))
 
-(set! *warn-on-reflection* true)
-
-(deftype Arity [params var-params body])
-(deftype Defn [arities env fn-name])
+(defrecord Arity [params var-params body])
+(defrecord Defn [arities env fn-name])
 
 (deftype Continuation [k])
 
@@ -31,7 +29,7 @@
                         env
                         ds
                         (fn [ds2]
-                          #_(println :ds ds)
+                          #_(println :ds ds2)
                           #(f2 env ds2 k)))))
         [f & fs] (map analyze sq)]
     (if (nil? f) 
@@ -45,14 +43,25 @@
 
 (defn- analyze-if [sexp]
   (let [[[_ & conseq] [_ & alt]] (split-with #(not= % 'else>) sexp)
-        conseq-fn (analyze-sequence conseq)
-        alt-fn (analyze-sequence alt)]
+        conseq-fn (analyze conseq)
+        alt-fn (analyze alt)]
+    (fn [env ds k]
+      (let [pred (peek ds)
+            ds* (pop ds)
+            env* (vars/extend-env env)
+            r (if (or (false? pred) (nil? pred))
+                #(alt-fn env* ds* k)
+                #(conseq-fn env* ds* k))]
+        r))))
+
+(defn analyze-when [sexp]
+  (let [conseq-fn (analyze (rest sexp))]
     (fn [env ds k]
       (let [pred (peek ds)
             stack* (pop ds)
             env* (vars/extend-env env)
             r (if (or (false? pred) (nil? pred))
-                #(alt-fn env* stack* k)
+                #(k (pop ds))
                 #(conseq-fn env* stack* k))]
         r))))
 
@@ -64,7 +73,7 @@
       #((analyze sq) env* ds* k))))
 
 (defn- analyze-call-cc [sexp]
-  (let [sq-fn (analyze-sequence (next sexp))]
+  (let [sq-fn (analyze (rest sexp))]
     (fn [env ds k]
       (sq-fn env
              (conj ds (Continuation. k))
@@ -93,22 +102,7 @@
 (defn- map-params [{{:keys [params var-params]} :params body :body}]
   (Arity. (mapv second params)
           (-> var-params :var-form second)
-          (analyze-sequence (seq (second body)))))
-
-(defn- match-defn-arity [^Defn proc args]
-  (letfn [(better-match? [^Arity arity best]
-            (and (.var-params arity)
-                 (>= (count args) (count (.params arity)))
-                 (> (count (.params arity))
-                    (if best (count (.params ^Arity best)) 0))))
-          (exact-match? [{:keys [params var-params]}]
-            (and (= (count params) (count args)) (nil? var-params)))]
-    (loop [[arity & tail] (.arities proc)
-           best nil]
-      (cond (nil? arity) best
-            (exact-match? arity) arity
-            (better-match? arity best) (recur tail arity)
-            :else (recur tail best)))))
+          (analyze (seq (second body)))))
 
 (defn- analyze-defn [[_ & f]]
   (let [{fn-name :fn-name [arity body] :fn-tail}
@@ -124,11 +118,25 @@
         (Defn. arities env fn-name))
       #(k stack))))
 
-(defn- zip-params-args [^Arity arity args]
-  (let [pcount (count (.params arity))
+(defn- match-defn-arity [^Defn {:keys [arities]} args]
+  (letfn [(better-match? [{:keys [params var-params] :as arity} best]
+            (and var-params
+                 (>= (count args) (count params))
+                 (> (count (:params arity))
+                    (count (:params best)))))
+          (exact-match? [{:keys [params var-params]}]
+            (and (= (count params) (count args)) (nil? var-params)))]
+    (loop [[arity & tail] arities
+           best nil]
+      (cond (nil? arity) best
+            (exact-match? arity) arity
+            (better-match? arity best) (recur tail arity)
+            :else (recur tail best)))))
+
+(defn- zip-params-args [{:keys [params var-params]} args]
+  (let [pcount (count params)
         varargs (seq (drop pcount args))
-        params* (cond-> (.params arity) 
-                  varargs (conj (.var-params arity)))
+        params* (cond-> params varargs (conj var-params))
         args* (cond-> (vec (take pcount args))  varargs (conj varargs))]
     (zipmap params* args*)))
 
@@ -203,12 +211,15 @@
       defn> (analyze-defn sexp)
       call/cc> (analyze-call-cc sexp)
       if> (analyze-if sexp)
+      when> (analyze-when sexp)
       quote> (analyze-quoted sexp) 
       quote (analyze-quoted sexp)
       invoke> (analyze-application sexp)
       (analyze-sequence sexp))))
 
 (comment 
+
+  (set! *warn-on-reflection* true)
   
   (require '[flow-storm.api :as fs-api])
   (fs-api/local-connect)

@@ -1,9 +1,8 @@
 (ns dumch.vars-test
   (:require [clojure.test :refer [deftest testing is]]
             [dumch.vars :refer [def-var! set-var! lookup-var
-                               extend-env ->env global-env]])
-  (:import (dumch.env Frame)
-           (clojure.lang ExceptionInfo)))
+                               extend-env ->env]])
+  (:import (clojure.lang ExceptionInfo)))
 
 (deftest priority-test
   (let [parent-env (->env)
