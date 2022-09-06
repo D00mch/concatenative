@@ -293,11 +293,6 @@
   (is (= (default-example 1 2 4) "241")))
 
 (deftest runtime-errors-test
-  (testing "improper var name"
-    (is (thrown-with-msg?
-        Exception
-        #"Vars should start with '!'"
-        (eval- '(1 improper-name+)))))
   (testing "insufficient arguments"
     (is (thrown-with-msg?
           Exception
@@ -313,3 +308,37 @@
           Exception
           #"Can't pop empty vector"
           (eval- '(<pop>))))))
+
+(deftest tailrec-test
+  (testing "tail recursion will not produce stack oveflow"
+    (is (= (eval- '(
+                    []
+                    100000
+                    (invoke> range 1)
+                    (each>)
+                    (invoke> conj 100001)
+                    (invoke> count 1)
+                    ))
+           [100000]))
+    (is (= (eval- '(
+                    100000
+                    (times> )
+                    ))
+           []))
+    (is (= (eval- '(
+                    (defn> recursive [!n]
+                      !n
+                      0
+                      (invoke> > 2)
+
+                      (if> 
+                        !n
+                        (invoke> dec 1)
+                        (invoke> recursive 1)
+                        else> "end"))
+                    100000
+                    (invoke> recursive 1)
+                    ))
+           ["end"]))))
+
+

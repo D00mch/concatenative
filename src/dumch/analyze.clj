@@ -25,12 +25,13 @@
   (let [sequentially 
         (fn [f1 f2]
           (fn [env ds k]
-            (trampoline f1
-                        env
-                        ds
-                        (fn [ds2]
-                          #_(println :ds ds2)
-                          #(f2 env ds2 k)))))
+            (fn [] ;; wrap for a trampoline
+              (f1
+                env
+                ds
+                (fn [ds2]
+                  #_(println :ds ds2)
+                  (f2 env ds2 k))))))
         [f & fs] (map analyze sq)]
     (if (nil? f) 
       (fn [_ ds k] #(k ds))
@@ -88,18 +89,18 @@
 
 (defn- loop-vals [body-fn [v & tail] env ds k]
   (if v
-    (let [k2 (fn [ds2]
-               #(loop-vals body-fn tail env ds2 k))]
-      (vars/def-var! env '<continue_> (Continuation. k2))
-      (trampoline body-fn env (conj ds v) k2))
+    #(let [k2 (fn [ds2]
+                (loop-vals body-fn tail env ds2 k))]
+       (vars/def-var! env '<continue_> (Continuation. k2))
+       (body-fn env (conj ds v) k2))
     #(k ds)))
 
-(defn- loop-count [f cnt env ds k]
+(defn- loop-count [body-fn cnt env ds k]
   (if (> cnt 0)
-    (let [k2 (fn [ds2]
-               #(loop-count f (dec cnt) env ds2 k))]
-      (vars/def-var! env '<continue_> (Continuation. k2))
-      (trampoline f env ds k2))
+    #(let [k2 (fn [ds2]
+                (loop-count body-fn (dec cnt) env ds2 k))]
+       (vars/def-var! env '<continue_> (Continuation. k2))
+       (body-fn env ds k2))
     #(k ds)))
 
 (defn- analyze-loop [sexp loop-fn]
@@ -231,8 +232,6 @@
             (= sym '<continue>) (generate-call-cc '<continue_>) 
             (= sym '<break>) (generate-call-cc '<break_>)
             (def? _name) (analyze-def sym)
-            (str/ends-with? _name "+") 
-            (throw (ex-info "Vars should start with '!'" {:var sym}))
             :else (analyze-lookup sym)))) 
 
   clojure.lang.ISeq
