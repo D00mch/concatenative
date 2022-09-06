@@ -201,6 +201,8 @@
             (= sym '<swap>) (fn [_ ds k] #(k (swap ds)))
             (= sym '<call>) (analyze-call sym)
             (def? _name) (analyze-def sym)
+            (str/ends-with? _name "+") 
+            (throw (ex-info "Vars should start with '!'" {:var sym}))
             :else (analyze-lookup sym)))) 
 
   clojure.lang.ISeq

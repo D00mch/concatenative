@@ -20,6 +20,12 @@
     (is (= (eval- 
              '((invoke> pr 0)))          [nil]))))
 
+(defn- check-local-bound [exp]
+  (is (thrown-with-msg?
+        Exception
+        #"not found"
+        (eval- exp))))
+
 (deftest if-test
   (testing "if> dispatch on truthy value"
     (is (= (eval- '(true (if> 1 else> 2)))    [1]))
@@ -30,7 +36,13 @@
   (testing "if> fills the stack"
     (is (= (eval- '(1 (if> 1 1 2 3 else> 2))) [1 1 2 3]))
     (is (= (eval- '(1 (if> 1 [1 2] else> 2))) [1 [1 2]]))
-    (is (= (eval- '(nil (if> 1 else> 2 2)))   [2 2]))))
+    (is (= (eval- '(nil (if> 1 else> 2 2)))   [2 2])))
+  
+  (testing "if has local scope"
+    (check-local-bound '(
+                         false
+                         (if> 1 !a+ else> 1 !a+)
+                         !a))))
 
 (deftest when-test
   (testing "when> dispatch on truthy value"
@@ -38,8 +50,158 @@
     (is (= (eval- '(0 (when> 1)))       [1]))
     (is (= (eval- '(false (when> 1)))   []))
     (is (= (eval- '(nil (when> 1)))     [])))
+
   (testing "when> fills the stack"
-    (is (= (eval- '(1 (when> 1 1 [2]))) [1 1 [2]]))))
+    (is (= (eval- '(1 (when> 1 1 [2]))) [1 1 [2]])))
+  
+  (testing "when has local scope"
+    (check-local-bound '(
+                         true
+                         (when> 1 !a+)
+                         !a))))
+
+(deftest quotation-test []
+  (testing "using quotation as seq"
+    (is (= (eval- '(
+                    '(1 1 1)
+                    (invoke> count 1)
+                    ))
+           [3]))
+    
+    (is (= (eval- '(
+                    (quote> 1 2)
+                    (invoke> vec 1)))
+           [[1 2]])))
+
+  (testing "using quotation as lambda"
+    (is (= (eval- '(
+                    (defn> each
+                      [!vc !quot]
+                      !vc
+                      (when>
+                        !vc
+                        (invoke> first 1)
+                        !quot ;; quotation as lambda 
+                        <call>
+                        !vc
+                        (invoke> next 1)
+                        !quot
+                        (invoke> each 2)))
+
+                    '(1 2 3 4)
+                    '("n:"
+                      <swap>
+                      (invoke> str 2))
+                    (invoke> each 2)
+                    ))
+           ["n:1" "n:2" "n:3" "n:4"]))))
+
+(deftest call-cc
+  (testing "simple call/cc"
+    (is (= (eval- '(
+                    1
+                    (call/cc>
+                      ;; call/cc implicitly adds continuation to
+                      ;; so we add a var `!c1` and pop from the stack
+                      !c1+  
+                      <pop>
+                      2
+                      (invoke> !c1 0)
+                      3)
+                    "end"))
+           [1 2 "end"])))
+
+  (testing "implement custom `each`, `break`, `continue`"
+    (is (= (eval- '(
+                    (defn> each
+                      [!vc !quot]
+                      !vc
+                      (if>
+                        !vc
+                        (invoke> first 1)
+                        !quot
+                        <call>
+                        !vc
+                        (invoke> next 1)
+                        !quot
+                        (invoke> each 2)
+                        else>
+                        <pop>))
+
+                    (call/cc>
+                      !break+ <pop>
+                      '(1 2 3 4 5 6 7)
+                      '(call/cc>
+                         !continue+ <pop>
+                         !input+
+
+                         ;; ignoring numbers more then 3
+                         3
+                         (invoke> > 2)
+                         (when> (invoke> !break 0))
+                         !input
+
+                         ;; ignoring even
+                         (invoke> even? 1)
+                         (when> (invoke> !continue 0))
+
+                         !input
+                         "n:"
+                         <swap>
+                         (invoke> str 2)
+                         )
+                      (invoke> each 2))
+                    "TheEnd!"
+                    ))
+           ["n:1" "n:3" "TheEnd!"]))))
+
+(deftest defn-test []
+  (testing "single-arity functino"
+    (is (= (eval- '(
+                    (defn> plus [!a !b]
+                      !a !b (invoke> + 2))
+                    1 2
+                    (invoke> plus 2)))
+           [3])))
+
+  (testing "multi-arity funciton"
+    (is (= (eval- '(
+                    (defn> plus7 
+                      "add 7 to sum of provided numbers"
+                      ([!a]
+                       !a 7 (invoke> + 2))
+                      ([!a !b]
+                       !a
+                       !b
+                       7
+                       (invoke> + 3))
+                      ([!a !b & !sq] ;; like varargs in Clojure
+                       !sq 
+                       (invoke> count 1)  ;; calculating args count
+                       3                  ;; add 3 more args: !a, !b, 7 
+                       (invoke> + 2)      ;; done
+                       !args-count+
+                       <pop>
+                       !a !b
+                       !sq <call> ;; move sequence to stack
+                       7
+                       (invoke> + !args-count)
+                       ))
+                    1 1 1 1
+                    (invoke> plus7 4) ;; 1+1+1+1 + 7 = 11
+                    (invoke> plus7 1) ;; 11 + 7 = 18
+                    ))
+           [18])))
+  
+  (testing "when has local scope"
+    (is (= (eval- '(
+                    (defn> f [] 1 !a+ !a)
+                    (invoke> f 0)))
+           [1 1]))
+    (check-local-bound '(
+                         (defn> f [] 1 !a+ !a)
+                         (invoke> f 0)
+                         !a))))
 
 (deftest nil-test
   (testing "put nil in stack"
@@ -97,6 +259,11 @@
   (is (= (default-example 1 2 4) "241")))
 
 (deftest runtime-errors-test
+  (testing "improper var name"
+    (is (thrown-with-msg?
+        Exception
+        #"Vars should start with '!'"
+        (eval- '(1 improper-name+)))))
   (testing "insufficient arguments"
     (is (thrown-with-msg?
           Exception

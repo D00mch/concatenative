@@ -21,7 +21,8 @@
    ;; sequence
    'first first 'last last 'rest rest 'next next 'cons cons
    'count count 'seq seq 'pop pop 'conj conj 'peek peek
-   'range range 'drop drop 'take take 'empty? empty?})
+   'range range 'drop drop 'take take 'empty? empty?
+   'vector vector 'vec vec 'list list})
 
 
 (def primitive? (set (vals primitive-procedure-map)))
