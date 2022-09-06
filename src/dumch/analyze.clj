@@ -80,6 +80,34 @@
              (fn [ds*]
                #(k ds*))))))
 
+(defn- generate-call-cc [sym]
+  (let [cc-function (analyze (list 'invoke> sym 0))]
+    (fn [env ds k] 
+      (cc-function env ds (fn [cc]
+                            #(k (conj ds cc)))))))
+
+(defn- loop-vals [body-fn [v & tail] env ds k]
+  (if v
+    (let [k2 (fn [ds2]
+               #(loop-vals body-fn tail env ds2 k))]
+      (vars/def-var! env '<continue_> (Continuation. k2))
+      (trampoline body-fn env (conj ds v) k2))
+    #(k ds)))
+
+(defn- loop-count [f cnt env ds k]
+  (if (> cnt 0)
+    (let [k2 (fn [ds2]
+               #(loop-count f (dec cnt) env ds2 k))]
+      (vars/def-var! env '<continue_> (Continuation. k2))
+      (trampoline f env ds k2))
+    #(k ds)))
+
+(defn- analyze-loop [sexp loop-fn]
+  (let [for-fn (analyze (rest sexp))]
+    (fn [env ds k]
+      (vars/def-var! env '<break_> (Continuation. k))
+      #(loop-fn for-fn (peek ds) env (pop ds) k))))
+
 (defn- analyze-assignment [sexp]
   (fn [env ds k] 
     (let [value (peek ds)]
@@ -200,6 +228,8 @@
             (= sym '<dup>) (fn [_ ds k] #(k (conj ds (last ds)))) 
             (= sym '<swap>) (fn [_ ds k] #(k (swap ds)))
             (= sym '<call>) (analyze-call sym)
+            (= sym '<continue>) (generate-call-cc '<continue_>) 
+            (= sym '<break>) (generate-call-cc '<break_>)
             (def? _name) (analyze-def sym)
             (str/ends-with? _name "+") 
             (throw (ex-info "Vars should start with '!'" {:var sym}))
@@ -212,6 +242,8 @@
       def (analyze-def sexp)
       defn> (analyze-defn sexp)
       call/cc> (analyze-call-cc sexp)
+      each> (analyze-loop sexp loop-vals)
+      times> (analyze-loop sexp loop-count)
       if> (analyze-if sexp)
       when> (analyze-when sexp)
       quote> (analyze-quoted sexp) 

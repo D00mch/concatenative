@@ -96,6 +96,40 @@
                     ))
            ["n:1" "n:2" "n:3" "n:4"]))))
 
+(deftest loops
+  (testing "'times>' loop with empty body"
+    (is (= (eval- '(
+                    99 (times> ) "TheEnd"))
+           ["TheEnd"])))
+  (testing "'each>' loop with empty body"
+    (is (= (eval- '(
+                    3 (invoke> range 1) (each>)))
+           [0 1 2])))
+  (testing "'times>' loop"
+    (is (= (eval- '(
+                    2 (times> 1 2)))
+           [1 2 1 2])))
+  (testing "'each>' loop with <continue> and <break>"
+    (is (= (eval- '(
+                    15 (invoke> range 1)
+                    (each>
+                      ;; skip even
+                      <dup>
+                      (invoke> even? 1)
+                      (when> <pop> <continue>)
+
+                      ;; break after 7
+                      <dup>
+                      7 (invoke> = 2)
+                      (when> <pop> <break>)
+
+                      "n:"
+                      <swap>
+                      (invoke> str 2))
+                    "TheEnd!"
+                    ))
+           ["n:1" "n:3" "n:5" "TheEnd!"]))))
+
 (deftest call-cc
   (testing "simple call/cc"
     (is (= (eval- '(
