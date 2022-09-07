@@ -37,12 +37,11 @@
     (is (= (eval- '(1 (if> 1 1 2 3 else> 2))) [1 1 2 3]))
     (is (= (eval- '(1 (if> 1 [1 2] else> 2))) [1 [1 2]]))
     (is (= (eval- '(nil (if> 1 else> 2 2)))   [2 2])))
-  
+
   (testing "if has local scope"
-    (check-local-bound '(
-                         false
-                         (if> 1 !a+ else> 1 !a+)
-                         !a))))
+    (check-local-bound '(false
+                          (if> 1 !a+ else> 1 !a+)
+                          !a))))
 
 (deftest when-test
   (testing "when> dispatch on truthy value"
@@ -53,29 +52,21 @@
 
   (testing "when> fills the stack"
     (is (= (eval- '(1 (when> 1 1 [2]))) [1 1 [2]])))
-  
+
   (testing "when has local scope"
-    (check-local-bound '(
-                         true
-                         (when> 1 !a+)
-                         !a))))
+    (check-local-bound '(true (when> 1 !a+) !a))))
 
 (deftest quotation-test []
   (testing "using quotation as seq"
-    (is (= (eval- '(
-                    '(1 1 1)
-                    (invoke> count 1)
-                    ))
+    (is (= (eval- '('(1 1 1) (invoke> count 1)))
            [3]))
-    
-    (is (= (eval- '(
-                    (quote> 1 2)
+
+    (is (= (eval- '((quote> 1 2)
                     (invoke> vec 1)))
            [[1 2]])))
 
   (testing "using quotation as lambda"
-    (is (= (eval- '(
-                    (defn> each
+    (is (= (eval- '((defn> each
                       [!vc !quot]
                       !vc
                       (when>
@@ -90,50 +81,46 @@
 
                     '(1 2 3 4)
                     '("n:"
-                      <swap>
-                      (invoke> str 2))
-                    (invoke> each 2)
-                    ))
+                       <swap>
+                       (invoke> str 2))
+                    (invoke> each 2)))
            ["n:1" "n:2" "n:3" "n:4"]))))
 
 (deftest loops
   (testing "'times>' loop with empty body"
-    (is (= (eval- '(
-                    99 (times> ) "TheEnd"))
+    (is (= (eval- '(99 (times> ) "TheEnd"))
            ["TheEnd"])))
+
   (testing "'each>' loop with empty body"
-    (is (= (eval- '(
-                    3 (invoke> range 1) (each>)))
+    (is (= (eval- '(3 (invoke> range 1) (each>)))
            [0 1 2])))
+
   (testing "'times>' loop"
-    (is (= (eval- '(
-                    2 (times> 1 2)))
+    (is (= (eval- '(2 (times> 1 2)))
            [1 2 1 2])))
+
   (testing "'each>' loop with <continue> and <break>"
-    (is (= (eval- '(
-                    15 (invoke> range 1)
-                    (each>
-                      ;; skip even
-                      <dup>
-                      (invoke> even? 1)
-                      (when> <pop> <continue>)
+    (is (= (eval- '(15 (invoke> range 1)
+                       (each>
+                         ;; skip even
+                         <dup>
+                         (invoke> even? 1)
+                         (when> <pop> <continue>)
 
-                      ;; break after 7
-                      <dup>
-                      7 (invoke> = 2)
-                      (when> <pop> <break>)
+                         ;; break after 7
+                         <dup>
+                         7 (invoke> = 2)
+                         (when> <pop> <break>)
 
-                      "n:"
-                      <swap>
-                      (invoke> str 2))
-                    "TheEnd!"
-                    ))
+                         "n:"
+                         <swap>
+                         (invoke> str 2))
+                       "TheEnd!"))
            ["n:1" "n:3" "n:5" "TheEnd!"]))))
 
 (deftest call-cc
   (testing "simple call/cc"
-    (is (= (eval- '(
-                    1
+    (is (= (eval- '(1
                     (call/cc>
                       ;; call/cc implicitly adds continuation to
                       ;; so we add a var `!c1` and pop from the stack
@@ -146,8 +133,7 @@
            [1 2 "end"])))
 
   (testing "implement custom `each`, `break`, `continue`"
-    (is (= (eval- '(
-                    (defn> each
+    (is (= (eval- '((defn> each
                       [!vc !quot]
                       !vc
                       (if>
@@ -182,17 +168,14 @@
                          !input
                          "n:"
                          <swap>
-                         (invoke> str 2)
-                         )
+                         (invoke> str 2))
                       (invoke> each 2))
-                    "TheEnd!"
-                    ))
+                    "TheEnd!"))
            ["n:1" "n:3" "TheEnd!"]))))
 
 (deftest defn-test []
   (testing "single-arity functino"
-    (is (= (eval- '(
-                    (defn> plus [!a !b]
+    (is (= (eval- '((defn> plus [!a !b]
                       !a !b (invoke> + 2))
                     1 2
                     (invoke> plus 2)))
@@ -219,21 +202,18 @@
                        !a !b
                        !sq <call> ;; move sequence to stack
                        7
-                       (invoke> + !args-count)
-                       ))
+                       (invoke> + !args-count)))
                     1 1 1 1
                     (invoke> plus7 4) ;; 1+1+1+1 + 7 = 11
                     (invoke> plus7 1) ;; 11 + 7 = 18
                     ))
            [18])))
-  
+
   (testing "when has local scope"
-    (is (= (eval- '(
-                    (defn> f [] 1 !a+ !a)
+    (is (= (eval- '((defn> f [] 1 !a+ !a)
                     (invoke> f 0)))
            [1 1]))
-    (check-local-bound '(
-                         (defn> f [] 1 !a+ !a)
+    (check-local-bound '((defn> f [] 1 !a+ !a)
                          (invoke> f 0)
                          !a))))
 
@@ -246,19 +226,20 @@
 
 (deftest local-vars-shadow
   (testing "shadow if vars"
-    (is (= (eval-
-             '(true !a+
-                    (if> 1 !a+ !a else> 0)
-                    !a))
+    (is (= (eval- '(true
+                     !a+
+                     (if> 1 !a+ !a else> 0)
+                     !a))
            [1 1 true])))
+
   (testing "shadow else vars"
-    (is (= (eval-
-             '(false !a+
+    (is (= (eval- '(false
+                     !a+
                      (if> 0 else> 1 !a+ !a)
                      !a))
            [1 1 false]))))
 
- #_{:clj-kondo/ignore [:concatenative/defstackfn]} ; divide by zero in 'if' branch
+#_{:clj-kondo/ignore [:concatenative/defstackfn]} ; divide by zero in 'if' branch
 (defstackfn default-example 
   [!a !b !c]               ; !a=1 !b=2 !c=4
   !a                       ; 1
@@ -298,11 +279,13 @@
           Exception
           #"IndexOutOfBoundsException"
           (eval- '(2 (invoke> / 2))))))
+
   (testing "divide by zero"
     (is (thrown-with-msg?
           Exception
           #"Divide by zero"
           (eval- '(2 0 (invoke> / 2))))))
+
   (testing "pop from empty stack"
     (is (thrown-with-msg?
           Exception
@@ -311,22 +294,17 @@
 
 (deftest tailrec-test
   (testing "tail recursion will not produce stack oveflow"
-    (is (= (eval- '(
-                    []
+    (is (= (eval- '([]
                     100000
                     (invoke> range 1)
                     (each>)
                     (invoke> conj 100001)
-                    (invoke> count 1)
-                    ))
+                    (invoke> count 1)))
            [100000]))
-    (is (= (eval- '(
-                    100000
-                    (times> )
-                    ))
+    (is (= (eval- '(100000
+                     (times>)))
            []))
-    (is (= (eval- '(
-                    (defn> recursive [!n]
+    (is (= (eval- '((defn> recursive [!n]
                       !n
                       0
                       (invoke> > 2)
@@ -337,8 +315,7 @@
                         (invoke> recursive 1)
                         else> "end"))
                     100000
-                    (invoke> recursive 1)
-                    ))
+                    (invoke> recursive 1)))
            ["end"]))))
 
 (deftest java-call
@@ -352,8 +329,8 @@
                     (invoke> .get 2)))
            [3]))
     (is (= (eval- '("str"
-                    (invoke> String. 1)
-                    (invoke> .length 1)))
+                     (invoke> String. 1)
+                     (invoke> .length 1)))
            (eval- '("str" (invoke> count 1))))))
 
   (testing "constructor and static methods"
