@@ -5,25 +5,32 @@ paper.
 
 [docs-paper]: https://github.com/Liverm0r/concatenative/blob/main/docs/rpl-take-home-project1-clj.pdf
 
-## Assumptions
-
-- Local vars should be withing `if else` block, meaning that expressions after
-`if else` do not see vars declared within `if else`.
-
-## How it works
-
-There is a `program` that is just a list of expressions to be evaluated;
-`stack` is used to pass parameters; `env` (a dictionary) is used to store
-variables.
-
-All three formulate a `State`.
-
-Evaluation happens with processing `State` in `interpreter` function: 
-1. Get next expression from the `program`.
-2. Evaluates it (based on rules from the [paper][docs-paper]).
-3. If `program` is not empty, go to 1.
-
 ## Design choices
+
+Decision was made to support continuations to be able to add `continue` and `break`
+even for custom loops (there is an example of a custom `each` in `call-cc` tests). 
+
+The simplest way to support continuations is to write interpreter in
+continuation passing style (CPS). Main point here is to support mutual recursion
+with tail call optimization (`trampoline`). There is also a performance overhead
+with CPS.
+
+2 optimizations are used:
+
+- separating analyze and evaluation steps;
+- using mutability for environment.
+
+Java interop is implemented like in Clojure:
+
+- `(invoke> .method 1) ` to invoke the `method`;
+- `(invoke> ClassConstructor.)` to create an instance;
+
+The same with functions parameters and multi-arity. 
+
+Lambdas are just quoted forms. Check `quotation-test`.
+
+`Call/cc>` is like a quotation with a side effect: continuation is implicitly
+added in the stack.
 
 ### Polymorphism
 
@@ -64,6 +71,11 @@ Two approaches are used to deal with this.
 1. Code inspections are smart enough to find typos and errors like division by
 zero, popping from empty stack, or insufficient arguments count. 
 
+TODO: 
+
+- [ ] support: `defn>`, `each>`, `times>`, java calls, stack manipulation
+functions;
+
 <img src="https://github.com/Liverm0r/concatenative/blob/main/docs/inspections.png" alt="alt text">
 
 2. If anything crashes, we have usual jvm exception wrapped into ExceptionInfo
@@ -76,7 +88,6 @@ with `State` attached, where we can inspect what step the program stumbled over:
         {:cause {:error-call {:fn /, :args (1 0)}},
          :state {:program ((invoke> / 2) 3 4), :stack [0 1], :env {!a 0}},
          :eval (invoke> / 2)}
-
 ```
 
 This approach is ok while programs are not huge.
