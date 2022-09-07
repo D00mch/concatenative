@@ -7,6 +7,7 @@
 (defrecord Arity [params var-params body])
 (defrecord Defn [arities env fn-name])
 
+(deftype JavaCall [sym])
 (deftype Continuation [k])
 
 (defprotocol IAnalyze
@@ -169,6 +170,11 @@
         args* (cond-> (vec (take pcount args))  varargs (conj varargs))]
     (zipmap params* args*)))
 
+(defn analyze-java-call [sexp]
+  (let [call (JavaCall. sexp)]
+    (fn [_ ds k]
+      #(k (conj ds call)))))
+
 (defn- execute-applicaiton [proc args ds k]
   (cond (vars/primitive? proc) 
         (k (conj ds (apply proc args)))
@@ -181,10 +187,11 @@
               ^Arity arity (match-defn-arity proc args)
               env (vars/extend-env (.env proc) 
                                    (zip-params-args arity args))]
-          ((.body arity)
-           env
-           ds
-           k))
+          ((.body arity) env ds k))
+
+        (instance? JavaCall proc)
+        #(k (conj ds (eval `(~(.sym ^JavaCall proc) ~@args))))
+
         :else (throw (ex-info  "Unknown procedure type: "  
                               {:proc proc :args args}))))
 
@@ -207,6 +214,12 @@
 
 (defn- def? [^String sym]
   (and (str/starts-with? sym "!") (str/ends-with? sym "+")))
+
+(defn- java-call? [sym]
+  (let [^String nm (name sym)]
+    (or (str/starts-with? nm ".")
+        (str/ends-with? nm ".")
+        (.contains (str sym) "/"))))
 
 (defn- swap [v] 
   (let [c (count v)
@@ -232,6 +245,7 @@
             (= sym '<continue>) (generate-call-cc '<continue_>) 
             (= sym '<break>) (generate-call-cc '<break_>)
             (def? _name) (analyze-def sym)
+            (java-call? sym) (analyze-java-call sym)
             :else (analyze-lookup sym)))) 
 
   clojure.lang.ISeq

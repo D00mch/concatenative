@@ -341,4 +341,23 @@
                     ))
            ["end"]))))
 
+(deftest java-call
+  (testing "constructor and virtual method"
+    (is (= (eval- '((invoke> java.util.LinkedList. 0)
+                    (invoke> .size 1)))
+           [0]))
+    (is (= (eval- '([1 2 3]
+                    (invoke> java.util.ArrayList. 1)
+                    2
+                    (invoke> .get 2)))
+           [3]))
+    (is (= (eval- '("str"
+                    (invoke> String. 1)
+                    (invoke> .length 1)))
+           (eval- '("str" (invoke> count 1))))))
 
+  (testing "constructor and static methods"
+    (is (= (eval- '([1 2 3]
+                    (invoke> java.util.LinkedList. 1)
+                    (invoke> java.util.Collections/max 1)))
+           [3]))))
