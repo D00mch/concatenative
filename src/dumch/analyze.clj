@@ -13,14 +13,14 @@
 (defprotocol IAnalyze
   (analyze [sepx]))
 
-(defn- analyze-self-evaluating [sexp]
+(defn- analyze-self-evaluating [exp]
   (fn [_ ds k]
-    #(k (conj ds sexp))))
+    #(k (conj ds exp))))
 
-(defn analyze-quoted [[op :as sexp]]
+(defn analyze-quoted [[op :as exp]]
   (analyze-self-evaluating (case op
-                             quote> (next sexp)
-                             quote (second sexp))))
+                             quote> (next exp)
+                             quote (second exp))))
 
 (defn- analyze-sequence [sq]
   (let [sequentially 
@@ -43,8 +43,8 @@
                  (next fs))
           f)))))
 
-(defn- analyze-if [sexp]
-  (let [[[_ & conseq] [_ & alt]] (split-with #(not= % 'else>) sexp)
+(defn- analyze-if [exp]
+  (let [[[_ & conseq] [_ & alt]] (split-with #(not= % 'else>) exp)
         conseq-fn (analyze conseq)
         alt-fn (analyze alt)]
     (fn [env ds k]
@@ -56,15 +56,15 @@
                 #(conseq-fn env* ds* k))]
         r))))
 
-(defn analyze-when [sexp]
-  (let [conseq-fn (analyze (rest sexp))]
+(defn analyze-when [exp]
+  (let [conseq-fn (analyze (rest exp))]
     (fn [env ds k]
       (let [pred (peek ds)
-            stack* (pop ds)
+            ds* (pop ds)
             env* (vars/extend-env env)
             r (if (or (false? pred) (nil? pred))
                 #(k (pop ds))
-                #(conseq-fn env* stack* k))]
+                #(conseq-fn env* ds* k))]
         r))))
 
 (defn- analyze-call [_]
@@ -74,8 +74,8 @@
           env* (vars/extend-env env)]
       #((analyze sq) env* ds* k))))
 
-(defn- analyze-call-cc [sexp]
-  (let [sq-fn (analyze (rest sexp))]
+(defn- analyze-call-cc [exp]
+  (let [sq-fn (analyze (rest exp))]
     (fn [env ds k]
       (sq-fn env
              (conj ds (Continuation. k))
@@ -104,20 +104,20 @@
        (body-fn env ds k2))
     #(k ds)))
 
-(defn- analyze-loop [sexp loop-fn]
-  (let [for-fn (analyze (rest sexp))]
+(defn- analyze-loop [exp loop-fn]
+  (let [for-fn (analyze (rest exp))]
     (fn [env ds k]
       (vars/def-var! env '<break_> (Continuation. k))
       #(loop-fn for-fn (peek ds) env (pop ds) k))))
 
-(defn- analyze-assignment [sexp]
+(defn- analyze-assignment [exp]
   (fn [env ds k] 
     (let [value (peek ds)]
-      (vars/set-var! env sexp value)
+      (vars/set-var! env exp value)
       #(k ds))))
 
-(defn- analyze-def [sexp]
-  (let [^String _name (name sexp)
+(defn- analyze-def [exp]
+  (let [^String _name (name exp)
         sym (symbol (subs _name 0 (dec (.length _name))))]
     (fn [env st k] 
       (let [value (peek st)]
@@ -125,9 +125,9 @@
         #(k st)))))
 
 (defn- analyze-lookup [sym]
-  (fn [env stack k]
+  (fn [env ds k]
     (let [result (vars/lookup-var env sym)]
-      #(k (conj stack result)))))
+      #(k (conj ds result)))))
 
 (defn- map-params [{{:keys [params var-params]} :params body :body}]
   (Arity. (mapv second params)
@@ -141,12 +141,12 @@
         arities 
         (cond (= arity :arity-1) [(map-params body)]
               (= arity :arity-n) (mapv map-params (:bodies body)))]
-    (fn [env stack k]
+    (fn [env ds k]
       (vars/def-var!
         env
         fn-name
         (Defn. arities env fn-name))
-      #(k stack))))
+      #(k ds))))
 
 (defn- match-defn-arity [^Defn {:keys [arities]} args]
   (letfn [(better-match? [{:keys [params var-params] :as arity} best]
@@ -170,8 +170,8 @@
         args* (cond-> (vec (take pcount args))  varargs (conj varargs))]
     (zipmap params* args*)))
 
-(defn analyze-java-call [sexp]
-  (let [call (JavaCall. sexp)]
+(defn analyze-java-call [exp]
+  (let [call (JavaCall. exp)]
     (fn [_ ds k]
       #(k (conj ds call)))))
 
@@ -249,20 +249,20 @@
             :else (analyze-lookup sym)))) 
 
   clojure.lang.ISeq
-  (analyze [[op :as sexp]]
+  (analyze [[op :as exp]]
     (case op
-      set! (analyze-assignment sexp) 
-      def (analyze-def sexp)
-      defn> (analyze-defn sexp)
-      call/cc> (analyze-call-cc sexp)
-      each> (analyze-loop sexp loop-vals)
-      times> (analyze-loop sexp loop-count)
-      if> (analyze-if sexp)
-      when> (analyze-when sexp)
-      quote> (analyze-quoted sexp) 
-      quote (analyze-quoted sexp)
-      invoke> (analyze-application sexp)
-      (analyze-sequence sexp))))
+      set! (analyze-assignment exp) 
+      def (analyze-def exp)
+      defn> (analyze-defn exp)
+      call/cc> (analyze-call-cc exp)
+      each> (analyze-loop exp loop-vals)
+      times> (analyze-loop exp loop-count)
+      if> (analyze-if exp)
+      when> (analyze-when exp)
+      quote> (analyze-quoted exp) 
+      quote (analyze-quoted exp)
+      invoke> (analyze-application exp)
+      (analyze-sequence exp))))
 
 (comment 
 

@@ -337,4 +337,11 @@
     (is (= (eval- '([1 2 3]
                     (invoke> java.util.LinkedList. 1)
                     (invoke> java.util.Collections/max 1)))
-           [3]))))
+           [3])))
+
+  (testing "defstackfn with java interop"
+    (defstackfn list-size 
+      [!list]
+      !list (invoke> .size 1))    
+    (is (= (list-size (java.util.ArrayList. [1 2 3 4]))
+           4))))
