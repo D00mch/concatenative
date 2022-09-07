@@ -4,6 +4,10 @@
             [clojure.string :as str]
             [dumch.vars :as vars]))
 
+;; Typical separation of analyze and evaluation (see SICP 4.1.7):
+;; What is different is that we wrap everything in lambda to support 
+;; mutual recurtion with tail-call optimization with `trampoline`
+
 (defrecord Arity [params var-params body])
 (defrecord Defn [arities env fn-name])
 
@@ -26,7 +30,7 @@
   (let [sequentially 
         (fn [f1 f2]
           (fn [env ds k]
-            (fn [] ;; wrap for a trampoline
+            (fn [] ;; wrap for a `trampoline`
               (f1
                 env
                 ds
